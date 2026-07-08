@@ -1,4 +1,4 @@
-# Cadence
+# L
 
 A minimal, offline-first task board built for one person's actual workflow:
 a queue, a done list, and a place to park ideas until they're ready to
