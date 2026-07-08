@@ -27,9 +27,24 @@
 
   let tasks = load(STORE_TASKS);
   let ideas = load(STORE_IDEAS);
+  let dirtySinceExport = false;
 
-  const persistTasks = () => save(STORE_TASKS, tasks);
-  const persistIdeas = () => save(STORE_IDEAS, ideas);
+  const persistTasks = () => { save(STORE_TASKS, tasks); dirtySinceExport = true; };
+  const persistIdeas = () => { save(STORE_IDEAS, ideas); dirtySinceExport = true; };
+
+  function exportBackup() {
+    const payload = JSON.stringify({ tasks, ideas, exportedAt: new Date().toISOString() }, null, 2);
+    const blob = new Blob([payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `board-backup-${toDateInputValue(new Date())}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    dirtySinceExport = false;
+  }
 
   /* ---------- Utilities ---------- */
 
@@ -130,7 +145,8 @@
       <div class="card-actions">
         ${moveBtn}
         ${calBtn}
-        <button class="icon-btn" data-action="edit-task" data-id="${task.id}" aria-label="Edit" title="Edit">&#8942;</button>
+        <button class="icon-btn edit" data-action="edit-task" data-id="${task.id}" aria-label="Edit" title="Edit">&#9999;&#65039;</button>
+        <button class="icon-btn delete" data-action="delete-task" data-id="${task.id}" aria-label="Delete" title="Delete">&#128465;&#65039;</button>
       </div>`;
   }
 
@@ -459,12 +475,18 @@
 
       if (state.editingTaskId) {
         const t = tasks.find(t => t.id === state.editingTaskId);
+        const previousDatetime = t.datetime;
         Object.assign(t, { title, description, datetime, labels });
+        if (datetime && datetime !== previousDatetime) {
+          window.open(calendarUrl(t), "_blank", "noopener");
+        }
       } else {
-        tasks.push({
+        const newTask = {
           id: uid(), title, description, datetime, labels,
           status: "queue", createdAt: new Date().toISOString(), doneAt: null,
-        });
+        };
+        tasks.push(newTask);
+        if (datetime) window.open(calendarUrl(newTask), "_blank", "noopener");
         // If this came from converting an idea, remove the idea now.
         if (state.editingIdeaId) {
           ideas = ideas.filter(i => i.id !== state.editingIdeaId);
@@ -583,12 +605,10 @@
       const t = tasks.find(t => t.id === id);
       if (t) { t.status = "queue"; t.doneAt = null; persistTasks(); renderAll(); }
     } else if (action === "edit-task") {
+      openEditTask(id);
+    } else if (action === "delete-task") {
       const t = tasks.find(t => t.id === id);
-      if (!t) return;
-      const choice = confirm(`Edit "${t.title}"?\n\nOK to edit, Cancel to delete instead.`);
-      if (choice) {
-        openEditTask(id);
-      } else if (confirm("Delete this task? This can't be undone.")) {
+      if (t && confirm(`Delete "${t.title}"? This can't be undone.`)) {
         tasks = tasks.filter(t => t.id !== id);
         persistTasks();
         renderAll();
@@ -606,6 +626,83 @@
       }
     }
   });
+
+  /* ---------- Backup: export / import ---------- */
+
+  document.getElementById("export-btn").addEventListener("click", exportBackup);
+
+  // Automatic backup: fires whenever the app is backgrounded or closed, but
+  // only if something actually changed since the last backup, so it doesn't
+  // spam a new file on every open. (Android may not always give us a clean
+  // "closed" signal if the app is force-killed, but this covers the normal
+  // case of switching away or swiping it out of recents.)
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden" && dirtySinceExport) exportBackup();
+  });
+  window.addEventListener("pagehide", () => {
+    if (dirtySinceExport) exportBackup();
+  });
+
+  document.getElementById("import-btn").addEventListener("click", () => {
+    document.getElementById("import-input").click();
+  });
+
+  document.getElementById("import-input").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let data;
+      try {
+        data = JSON.parse(reader.result);
+        if (!Array.isArray(data.tasks) || !Array.isArray(data.ideas)) throw new Error("shape mismatch");
+      } catch (err) {
+        alert("Couldn't read that file — make sure it's a Board backup JSON.");
+        return;
+      }
+      if (!confirm(`Import ${data.tasks.length} task(s) and ${data.ideas.length} idea(s)? This replaces everything currently in the app.`)) return;
+      tasks = data.tasks;
+      ideas = data.ideas;
+      persistTasks();
+      persistIdeas();
+      renderAll();
+      alert("Import complete.");
+    };
+    reader.readAsText(file);
+  });
+
+  /* ---------- Ask the browser not to auto-evict this app's storage ---------- */
+
+  if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persist().catch(() => {});
+  }
+
+  /* ---------- Swipe between tabs ---------- */
+
+  const TAB_ORDER = ["queue", "done", "ideas"];
+  let touchStartX = null, touchStartY = null;
+
+  const mainContent = document.getElementById("main-content");
+  mainContent.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1) return;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  mainContent.addEventListener("touchend", (e) => {
+    if (touchStartX === null || !backdrop.hidden) { touchStartX = null; return; }
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    touchStartX = null;
+
+    const SWIPE_THRESHOLD = 60;
+    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+
+    const idx = TAB_ORDER.indexOf(state.tab);
+    const nextIdx = dx > 0 ? idx + 1 : idx - 1;
+    if (nextIdx >= 0 && nextIdx < TAB_ORDER.length) showTab(TAB_ORDER[nextIdx]);
+  }, { passive: true });
 
   /* ---------- Service worker ---------- */
 

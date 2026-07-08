@@ -15,7 +15,14 @@
 <div id="app">
 
   <header class="app-header">
-    <h1 class="app-title">Board</h1>
+    <div class="app-header-top">
+      <h1 class="app-title">Board</h1>
+      <div class="header-actions">
+        <button id="export-btn" class="icon-btn" aria-label="Export backup" title="Export backup">&#8593;</button>
+        <button id="import-btn" class="icon-btn" aria-label="Import backup" title="Import backup">&#8595;</button>
+        <input type="file" id="import-input" accept="application/json" hidden>
+      </div>
+    </div>
     <nav class="tabs" role="tablist">
       <button class="tab" data-tab="queue" aria-selected="true">Queue</button>
       <button class="tab" data-tab="done">Done</button>

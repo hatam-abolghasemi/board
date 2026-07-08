@@ -11,7 +11,7 @@
   --accent-done: #6FA287;
   --accent-idea: #C0654F;
   --accent-action: #5FA8B0;
-  --danger: #C0654F;
+  --danger: #E0524F;
 
   --radius: 14px;
   --radius-sm: 9px;
@@ -67,7 +67,19 @@ input, textarea, select {
   font-size: 22px;
   font-weight: 650;
   letter-spacing: -0.02em;
-  margin: 0 0 16px 0;
+  margin: 0;
+}
+
+.app-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 6px;
 }
 
 .tabs {
@@ -246,6 +258,8 @@ input, textarea, select {
 .icon-btn.move-done { color: var(--accent-done); }
 .icon-btn.move-queue { color: var(--accent-queue); }
 .icon-btn.alarm { color: var(--accent-action); text-decoration: none; }
+.icon-btn.edit { color: var(--text-muted); }
+.icon-btn.delete { color: var(--danger); }
 
 .empty-state {
   color: var(--text-faint);

@@ -1,4 +1,4 @@
-const CACHE_NAME = "board-cache-v3";
+const CACHE_NAME = "board-cache-v5";
 const SHELL_FILES = [
   "./",
   "./index.html",
