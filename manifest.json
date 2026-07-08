@@ -1,6 +1,6 @@
 {
-  "name": "Ledger",
-  "short_name": "Ledger",
+  "name": "Cadence",
+  "short_name": "Cadence",
   "description": "Queue, done, and ideas — a minimal offline task board",
   "start_url": "./index.html",
   "scope": "./",
