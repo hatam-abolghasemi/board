@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Board</title>
+<meta name="theme-color" content="#12151A">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app">
+
+  <header class="app-header">
+    <h1 class="app-title">Board</h1>
+    <nav class="tabs" role="tablist">
+      <button class="tab" data-tab="queue" aria-selected="true">Queue</button>
+      <button class="tab" data-tab="done">Done</button>
+      <button class="tab" data-tab="ideas">Ideas</button>
+    </nav>
+  </header>
+
+  <div class="subbar" id="queue-subbar">
+    <div class="seg" id="queue-view-toggle">
+      <button class="seg-btn active" data-view="list">List</button>
+      <button class="seg-btn" data-view="calendar">Calendar</button>
+    </div>
+    <select id="range-select" class="range-select" aria-label="Days ahead to show">
+      <option value="0">Today only</option>
+      <option value="3">Next 3 days</option>
+      <option value="7" selected>Next 7 days</option>
+      <option value="14">Next 14 days</option>
+      <option value="30">Next 30 days</option>
+      <option value="9999">Everything upcoming</option>
+    </select>
+  </div>
+
+  <div class="subbar" id="done-subbar" hidden>
+    <div class="seg" id="done-view-toggle">
+      <button class="seg-btn active" data-view="list">List</button>
+      <button class="seg-btn" data-view="summary">Summary</button>
+    </div>
+    <select id="summary-range-select" class="range-select" hidden aria-label="Summary period">
+      <option value="7">This week</option>
+      <option value="30">This month</option>
+      <option value="90">Last 3 months</option>
+    </select>
+  </div>
+
+  <main id="main-content">
+
+    <section id="view-queue-list" class="view"></section>
+
+    <section id="view-queue-calendar" class="view" hidden>
+      <div class="cal-nav">
+        <button id="cal-prev" aria-label="Previous month">&#8249;</button>
+        <div id="cal-month-label" class="cal-month-label"></div>
+        <button id="cal-next" aria-label="Next month">&#8250;</button>
+      </div>
+      <div id="cal-grid" class="cal-grid"></div>
+      <div id="cal-day-tasks" class="cal-day-tasks"></div>
+    </section>
+
+    <section id="view-done-list" class="view" hidden></section>
+
+    <section id="view-done-summary" class="view" hidden></section>
+
+    <section id="view-ideas" class="view" hidden></section>
+
+  </main>
+
+  <button id="fab" class="fab" aria-label="Add">+</button>
+
+</div>
+
+<div id="modal-backdrop" class="modal-backdrop" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <div class="seg" id="entry-type-toggle">
+        <button class="seg-btn active" data-type="task">Task</button>
+        <button class="seg-btn" data-type="idea">Idea</button>
+      </div>
+      <button id="modal-close" class="icon-btn" aria-label="Close">&times;</button>
+    </div>
+
+    <form id="entry-form">
+      <label class="field">
+        <span class="field-label">Title</span>
+        <input type="text" id="f-title" required autocomplete="off">
+      </label>
+
+      <label class="field" id="f-datetime-field">
+        <span class="field-label">Date &amp; time</span>
+        <input type="datetime-local" id="f-datetime">
+      </label>
+
+      <label class="field" id="f-labels-field">
+        <span class="field-label">Labels <span class="field-hint">comma separated</span></span>
+        <input type="text" id="f-labels" placeholder="observability, ci-cd" autocomplete="off">
+      </label>
+
+      <label class="field">
+        <span class="field-label">Description <span class="field-hint">optional</span></span>
+        <textarea id="f-description" rows="3"></textarea>
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" id="f-cancel" class="btn btn-ghost">Cancel</button>
+        <button type="submit" id="f-save" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
