@@ -475,18 +475,13 @@
 
       if (state.editingTaskId) {
         const t = tasks.find(t => t.id === state.editingTaskId);
-        const previousDatetime = t.datetime;
         Object.assign(t, { title, description, datetime, labels });
-        if (datetime && datetime !== previousDatetime) {
-          window.open(calendarUrl(t), "_blank", "noopener");
-        }
       } else {
         const newTask = {
           id: uid(), title, description, datetime, labels,
           status: "queue", createdAt: new Date().toISOString(), doneAt: null,
         };
         tasks.push(newTask);
-        if (datetime) window.open(calendarUrl(newTask), "_blank", "noopener");
         // If this came from converting an idea, remove the idea now.
         if (state.editingIdeaId) {
           ideas = ideas.filter(i => i.id !== state.editingIdeaId);
@@ -681,28 +676,37 @@
   /* ---------- Swipe between tabs ---------- */
 
   const TAB_ORDER = ["queue", "done", "ideas"];
-  let touchStartX = null, touchStartY = null;
+  let touchStartX = null, touchStartY = null, touchHandled = false;
 
   const mainContent = document.getElementById("main-content");
   mainContent.addEventListener("touchstart", (e) => {
     if (e.touches.length !== 1) return;
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
+    touchHandled = false;
   }, { passive: true });
 
-  mainContent.addEventListener("touchend", (e) => {
-    if (touchStartX === null || !backdrop.hidden) { touchStartX = null; return; }
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    const dy = e.changedTouches[0].clientY - touchStartY;
-    touchStartX = null;
+  mainContent.addEventListener("touchmove", (e) => {
+    if (touchStartX === null || touchHandled || !backdrop.hidden) return;
+    if (e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - touchStartX;
+    const dy = e.touches[0].clientY - touchStartY;
 
-    const SWIPE_THRESHOLD = 60;
-    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-
-    const idx = TAB_ORDER.indexOf(state.tab);
-    const nextIdx = dx > 0 ? idx + 1 : idx - 1;
-    if (nextIdx >= 0 && nextIdx < TAB_ORDER.length) showTab(TAB_ORDER[nextIdx]);
+    // Fire as soon as the gesture is clearly horizontal, rather than waiting
+    // for touchend — more forgiving of the natural diagonal drift in a real
+    // swipe, and avoids fighting with the browser over ambiguous gestures.
+    const SWIPE_THRESHOLD = 40;
+    if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+      touchHandled = true;
+      const idx = TAB_ORDER.indexOf(state.tab);
+      const nextIdx = dx > 0 ? idx + 1 : idx - 1;
+      if (nextIdx >= 0 && nextIdx < TAB_ORDER.length) showTab(TAB_ORDER[nextIdx]);
+    }
   }, { passive: true });
+
+  const resetTouch = () => { touchStartX = null; touchStartY = null; touchHandled = false; };
+  mainContent.addEventListener("touchend", resetTouch, { passive: true });
+  mainContent.addEventListener("touchcancel", resetTouch, { passive: true });
 
   /* ---------- Service worker ---------- */
 

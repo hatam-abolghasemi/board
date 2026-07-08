@@ -1,4 +1,7 @@
-# Board — deployment notes
+# Ledger — deployment notes
+
+(Your repo/folder can stay named `board` — this is just the app's display
+name and icon, shown on the home screen and in the browser tab.)
 
 This is a plain HTML/CSS/JS app, no build step. It needs to be served over
 HTTPS for "Add to Home Screen" to install it as a real offline app (Android

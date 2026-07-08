@@ -150,6 +150,7 @@ input, textarea, select {
 /* Main content */
 #main-content {
   padding: 4px 20px 20px 20px;
+  touch-action: pan-y;
 }
 
 .view { min-height: 200px; }

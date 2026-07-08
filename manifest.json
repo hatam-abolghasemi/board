@@ -1,6 +1,6 @@
 {
-  "name": "Board",
-  "short_name": "Board",
+  "name": "Ledger",
+  "short_name": "Ledger",
   "description": "Queue, done, and ideas — a minimal offline task board",
   "start_url": "./index.html",
   "scope": "./",
