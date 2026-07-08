@@ -91,7 +91,7 @@
     const hour = d.getHours();
     const minutes = d.getMinutes();
     const message = encodeURIComponent(task.title);
-    return `intent:#Intent;action=android.intent.action.SET_ALARM;i.android.intent.extra.alarm.HOUR=${hour};i.android.intent.extra.alarm.MINUTES=${minutes};S.android.intent.extra.alarm.MESSAGE=${message};end`;
+    return `intent://#Intent;action=android.intent.action.SET_ALARM;i.android.intent.extra.alarm.HOUR=${hour};i.android.intent.extra.alarm.MINUTES=${minutes};S.android.intent.extra.alarm.MESSAGE=${message};end`;
   }
 
   /* ---------- State ---------- */
@@ -400,8 +400,10 @@
 
     document.getElementById("f-title").value = prefill?.title || "";
     document.getElementById("f-description").value = prefill?.description || "";
-    document.getElementById("f-datetime").value = prefill?.datetime || "";
+    document.getElementById("f-date").value = prefill?.date || "";
+    document.getElementById("f-time").value = prefill?.time || "";
     document.getElementById("f-labels").value = prefill?.labels ? prefill.labels.join(", ") : "";
+    document.querySelectorAll("#quick-dates .chip").forEach(c => c.classList.remove("active"));
 
     backdrop.hidden = false;
     document.getElementById("f-title").focus();
@@ -415,18 +417,25 @@
   function openEditTask(id) {
     const t = tasks.find(t => t.id === id);
     if (!t) return;
+    const d = t.datetime ? new Date(t.datetime) : null;
     openModal("task", {
       title: t.title,
       description: t.description,
-      datetime: t.datetime ? toLocalInputValue(new Date(t.datetime)) : "",
+      date: d ? toDateInputValue(d) : "",
+      time: d ? toTimeInputValue(d) : "",
       labels: t.labels,
     });
     state.editingTaskId = id;
   }
 
-  function toLocalInputValue(date) {
+  function toDateInputValue(date) {
     const pad = n => String(n).padStart(2, "0");
-    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`;
+  }
+
+  function toTimeInputValue(date) {
+    const pad = n => String(n).padStart(2, "0");
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
   form.addEventListener("submit", (e) => {
@@ -436,8 +445,9 @@
     const description = document.getElementById("f-description").value.trim();
 
     if (state.entryType === "task") {
-      const datetimeRaw = document.getElementById("f-datetime").value;
-      const datetime = datetimeRaw ? new Date(datetimeRaw).toISOString() : null;
+      const dateRaw = document.getElementById("f-date").value;
+      const timeRaw = document.getElementById("f-time").value || "09:00";
+      const datetime = dateRaw ? new Date(`${dateRaw}T${timeRaw}`).toISOString() : null;
       const labels = parseLabels(document.getElementById("f-labels").value);
 
       if (state.editingTaskId) {
@@ -472,6 +482,39 @@
     const btn = e.target.closest(".seg-btn");
     if (!btn) return;
     openModal(btn.dataset.type);
+  });
+
+  document.getElementById("quick-dates").addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    document.querySelectorAll("#quick-dates .chip").forEach(c => c.classList.remove("active"));
+    chip.classList.add("active");
+
+    const today = startOfDay(new Date());
+    let target;
+    switch (chip.dataset.quick) {
+      case "today": target = today; break;
+      case "tomorrow": target = addDays(today, 1); break;
+      case "weekend": {
+        // Next Saturday (today counts if it already is Saturday).
+        const dow = today.getDay();
+        const offset = (6 - dow + 7) % 7;
+        target = addDays(today, offset);
+        break;
+      }
+      case "nextweek": {
+        // Next Monday.
+        const dow = today.getDay();
+        const offset = ((1 - dow + 7) % 7) || 7;
+        target = addDays(today, offset);
+        break;
+      }
+      default: target = today;
+    }
+    document.getElementById("f-date").value = toDateInputValue(target);
+    if (!document.getElementById("f-time").value) {
+      document.getElementById("f-time").value = "09:00";
+    }
   });
 
   document.getElementById("fab").addEventListener("click", () => openModal("task"));

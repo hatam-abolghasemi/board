@@ -1,4 +1,4 @@
-const CACHE_NAME = "board-cache-v1";
+const CACHE_NAME = "board-cache-v2";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -27,20 +27,20 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Cache-first for the app shell, so the whole thing works with zero network.
+// Network-first: always serve the freshest version when online, and only
+// fall back to the cached copy when there's no connection. This means a
+// future deploy shows up the next time the app is opened with any signal,
+// instead of silently sticking to whatever was cached on first install.
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          return response;
-        })
-        .catch(() => cached);
-    })
+    fetch(event.request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

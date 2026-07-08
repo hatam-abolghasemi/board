@@ -92,10 +92,23 @@
         <input type="text" id="f-title" required autocomplete="off">
       </label>
 
-      <label class="field" id="f-datetime-field">
+      <div class="field" id="f-datetime-field">
         <span class="field-label">Date &amp; time</span>
-        <input type="datetime-local" id="f-datetime">
-      </label>
+        <div class="quick-dates" id="quick-dates">
+          <button type="button" class="chip" data-quick="today">Today</button>
+          <button type="button" class="chip" data-quick="tomorrow">Tomorrow</button>
+          <button type="button" class="chip" data-quick="weekend">This weekend</button>
+          <button type="button" class="chip" data-quick="nextweek">Next week</button>
+        </div>
+        <div class="field-row">
+          <label class="field">
+            <input type="date" id="f-date">
+          </label>
+          <label class="field">
+            <input type="time" id="f-time">
+          </label>
+        </div>
+      </div>
 
       <label class="field" id="f-labels-field">
         <span class="field-label">Labels <span class="field-hint">comma separated</span></span>

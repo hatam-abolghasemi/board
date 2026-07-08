@@ -515,3 +515,38 @@ input, textarea, select {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* The `hidden` attribute must always win over any component's own display rule. */
+[hidden] { display: none !important; }
+
+/* Quick date chips */
+.quick-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.chip {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.chip.active {
+  background: var(--accent-queue);
+  color: #1A1408;
+  border-color: var(--accent-queue);
+}
+
+.field-row {
+  display: flex;
+  gap: 10px;
+}
+
+.field-row .field { flex: 1; }
