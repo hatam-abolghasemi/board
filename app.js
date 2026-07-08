@@ -29,11 +29,26 @@
   let ideas = load(STORE_IDEAS);
   let dirtySinceExport = false;
 
-  const persistTasks = () => { save(STORE_TASKS, tasks); dirtySinceExport = true; };
-  const persistIdeas = () => { save(STORE_IDEAS, ideas); dirtySinceExport = true; };
+  const persistTasks = () => { save(STORE_TASKS, tasks); dirtySinceExport = true; pushToCloud(); };
+  const persistIdeas = () => { save(STORE_IDEAS, ideas); dirtySinceExport = true; pushToCloud(); };
+
+  // Strip out soft-deleted items once they're old enough that no other
+  // device could plausibly still need to see the tombstone to reconcile a
+  // deletion. Keeps the synced document from growing forever.
+  function purgeOldTombstones() {
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const before = tasks.length + ideas.length;
+    tasks = tasks.filter(t => !(t.deleted && t.updatedAt < cutoff));
+    ideas = ideas.filter(i => !(i.deleted && i.updatedAt < cutoff));
+    if (tasks.length + ideas.length !== before) { save(STORE_TASKS, tasks); save(STORE_IDEAS, ideas); }
+  }
 
   function exportBackup() {
-    const payload = JSON.stringify({ tasks, ideas, exportedAt: new Date().toISOString() }, null, 2);
+    const payload = JSON.stringify({
+      tasks: tasks.filter(t => !t.deleted),
+      ideas: ideas.filter(i => !i.deleted),
+      exportedAt: new Date().toISOString(),
+    }, null, 2);
     const blob = new Blob([payload], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -94,7 +109,7 @@
   }
 
   function parseLabels(str) {
-    return str.split(",").map(s => s.trim()).filter(Boolean);
+    return str.split(/\s+/).map(s => s.trim()).filter(Boolean);
   }
 
   // Builds a Google Calendar "quick add" link. Unlike the Clock app's SET_ALARM
@@ -177,7 +192,7 @@
     const today = startOfDay(now);
     const rangeEnd = state.rangeDays >= 9999 ? null : endOfDay(addDays(today, state.rangeDays));
 
-    const queueTasks = tasks.filter(t => t.status === "queue");
+    const queueTasks = tasks.filter(t => t.status === "queue" && !t.deleted);
     const noDate = queueTasks.filter(t => !t.datetime);
     const dated = queueTasks
       .filter(t => t.datetime && (!rangeEnd || new Date(t.datetime) <= rangeEnd))
@@ -231,7 +246,7 @@
     const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
     const today = startOfDay(new Date());
 
-    const queueTasks = tasks.filter(t => t.status === "queue" && t.datetime);
+    const queueTasks = tasks.filter(t => t.status === "queue" && t.datetime && !t.deleted);
     const tasksByDay = {};
     queueTasks.forEach(t => {
       const d = startOfDay(new Date(t.datetime));
@@ -271,7 +286,7 @@
 
   function renderDoneList() {
     const el = document.getElementById("view-done-list");
-    const done = tasks.filter(t => t.status === "done").sort((a, b) => new Date(b.doneAt) - new Date(a.doneAt));
+    const done = tasks.filter(t => t.status === "done" && !t.deleted).sort((a, b) => new Date(b.doneAt) - new Date(a.doneAt));
 
     if (!done.length) {
       el.innerHTML = `<div class="empty-state">Nothing done yet. Once you complete tasks, they'll land here.</div>`;
@@ -296,7 +311,7 @@
   function renderDoneSummary() {
     const el = document.getElementById("view-done-summary");
     const since = startOfDay(addDays(new Date(), -state.summaryRangeDays));
-    const done = tasks.filter(t => t.status === "done" && new Date(t.doneAt) >= since);
+    const done = tasks.filter(t => t.status === "done" && !t.deleted && new Date(t.doneAt) >= since);
 
     if (!done.length) {
       el.innerHTML = `<div class="empty-state">No completed tasks in this period yet.</div>`;
@@ -361,11 +376,12 @@
 
   function renderIdeas() {
     const el = document.getElementById("view-ideas");
-    if (!ideas.length) {
+    const visible = ideas.filter(i => !i.deleted);
+    if (!visible.length) {
       el.innerHTML = `<div class="empty-state">No ideas parked here. Use + &rarr; Idea for things you're not ready to schedule yet.</div>`;
       return;
     }
-    const sorted = [...ideas].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    const sorted = [...visible].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     el.innerHTML = sorted.map(ideaCardHtml).join("");
   }
 
@@ -425,7 +441,7 @@
     document.getElementById("f-description").value = prefill?.description || "";
     document.getElementById("f-date").value = prefill?.date || "";
     document.getElementById("f-time").value = prefill?.time || "";
-    document.getElementById("f-labels").value = prefill?.labels ? prefill.labels.join(", ") : "";
+    document.getElementById("f-labels").value = prefill?.labels ? prefill.labels.join(" ") : "";
     document.querySelectorAll("#quick-dates .chip").forEach(c => c.classList.remove("active"));
 
     backdrop.hidden = false;
@@ -475,22 +491,26 @@
 
       if (state.editingTaskId) {
         const t = tasks.find(t => t.id === state.editingTaskId);
-        Object.assign(t, { title, description, datetime, labels });
+        Object.assign(t, { title, description, datetime, labels, updatedAt: Date.now() });
       } else {
         const newTask = {
           id: uid(), title, description, datetime, labels,
           status: "queue", createdAt: new Date().toISOString(), doneAt: null,
+          updatedAt: Date.now(), deleted: false,
         };
         tasks.push(newTask);
-        // If this came from converting an idea, remove the idea now.
+        // If this came from converting an idea, soft-delete the idea now
+        // (so the deletion itself propagates to other devices on sync,
+        // instead of just vanishing locally).
         if (state.editingIdeaId) {
-          ideas = ideas.filter(i => i.id !== state.editingIdeaId);
+          const idea = ideas.find(i => i.id === state.editingIdeaId);
+          if (idea) { idea.deleted = true; idea.updatedAt = Date.now(); }
           persistIdeas();
         }
       }
       persistTasks();
     } else {
-      ideas.push({ id: uid(), title, description, createdAt: new Date().toISOString() });
+      ideas.push({ id: uid(), title, description, createdAt: new Date().toISOString(), updatedAt: Date.now(), deleted: false });
       persistIdeas();
     }
 
@@ -595,16 +615,17 @@
 
     if (action === "complete") {
       const t = tasks.find(t => t.id === id);
-      if (t) { t.status = "done"; t.doneAt = new Date().toISOString(); persistTasks(); renderAll(); }
+      if (t) { t.status = "done"; t.doneAt = new Date().toISOString(); t.updatedAt = Date.now(); persistTasks(); renderAll(); }
     } else if (action === "reopen") {
       const t = tasks.find(t => t.id === id);
-      if (t) { t.status = "queue"; t.doneAt = null; persistTasks(); renderAll(); }
+      if (t) { t.status = "queue"; t.doneAt = null; t.updatedAt = Date.now(); persistTasks(); renderAll(); }
     } else if (action === "edit-task") {
       openEditTask(id);
     } else if (action === "delete-task") {
       const t = tasks.find(t => t.id === id);
       if (t && confirm(`Delete "${t.title}"? This can't be undone.`)) {
-        tasks = tasks.filter(t => t.id !== id);
+        t.deleted = true;
+        t.updatedAt = Date.now();
         persistTasks();
         renderAll();
       }
@@ -614,8 +635,10 @@
       openModal("task", { title: idea.title, description: idea.description });
       state.editingIdeaId = id;
     } else if (action === "delete-idea") {
-      if (confirm("Delete this idea?")) {
-        ideas = ideas.filter(i => i.id !== id);
+      const idea = ideas.find(i => i.id === id);
+      if (idea && confirm("Delete this idea?")) {
+        idea.deleted = true;
+        idea.updatedAt = Date.now();
         persistIdeas();
         renderAll();
       }
@@ -657,8 +680,9 @@
         return;
       }
       if (!confirm(`Import ${data.tasks.length} task(s) and ${data.ideas.length} idea(s)? This replaces everything currently in the app.`)) return;
-      tasks = data.tasks;
-      ideas = data.ideas;
+      const now = Date.now();
+      tasks = data.tasks.map(t => ({ ...t, updatedAt: now, deleted: false }));
+      ideas = data.ideas.map(i => ({ ...i, updatedAt: now, deleted: false }));
       persistTasks();
       persistIdeas();
       renderAll();
@@ -708,6 +732,147 @@
   mainContent.addEventListener("touchend", resetTouch, { passive: true });
   mainContent.addEventListener("touchcancel", resetTouch, { passive: true });
 
+  /* ---------- Cloud sync (optional, off by default) ----------
+     Loads Firebase lazily and only touches the network when the person taps
+     the sync button — never at parse time, so a missing config or no
+     internet can never break the rest of the app. Everything above this
+     point works with zero knowledge that this section exists. */
+
+  const FIREBASE_SDK_BASE = "https://www.gstatic.com/firebasejs/12.15.0";
+  let firebaseModules = null;
+  let authInstance = null;
+  let firestoreDb = null;
+  let currentUser = null;
+  let unsubscribeSnapshot = null;
+
+  async function loadFirebase() {
+    if (firebaseModules) return firebaseModules;
+    const [appMod, authMod, fsMod] = await Promise.all([
+      import(`${FIREBASE_SDK_BASE}/firebase-app.js`),
+      import(`${FIREBASE_SDK_BASE}/firebase-auth.js`),
+      import(`${FIREBASE_SDK_BASE}/firebase-firestore.js`),
+    ]);
+    firebaseModules = { ...appMod, ...authMod, ...fsMod };
+    return firebaseModules;
+  }
+
+  function updateSyncUI(status) {
+    const btn = document.getElementById("sync-btn");
+    if (!btn) return;
+    btn.classList.remove("sync-signed-in", "sync-error");
+    if (status === "signed-in") {
+      btn.classList.add("sync-signed-in");
+      btn.title = `Synced as ${currentUser?.email || "signed in"} — tap to sign out`;
+    } else if (status === "error") {
+      btn.classList.add("sync-error");
+      btn.title = "Sync unavailable right now — tap to retry";
+    } else {
+      btn.title = "Sign in to sync across devices";
+    }
+  }
+
+  // Per-item last-write-wins: whichever copy has the newer updatedAt survives,
+  // including tombstones (deleted:true), so a deletion on one device actually
+  // reaches the other instead of an offline copy silently resurrecting it.
+  function mergeArray(local, remote) {
+    let changed = false;
+    const byId = new Map(local.map(item => [item.id, item]));
+    (remote || []).forEach(r => {
+      const l = byId.get(r.id);
+      if (!l || (r.updatedAt || 0) > (l.updatedAt || 0)) {
+        byId.set(r.id, r);
+        changed = true;
+      }
+    });
+    return { merged: Array.from(byId.values()), changed };
+  }
+
+  function mergeRemote(remoteData) {
+    if (!remoteData) return;
+    const tResult = mergeArray(tasks, remoteData.tasks);
+    const iResult = mergeArray(ideas, remoteData.ideas);
+    if (tResult.changed || iResult.changed) {
+      tasks = tResult.merged;
+      ideas = iResult.merged;
+      save(STORE_TASKS, tasks);
+      save(STORE_IDEAS, ideas);
+      renderAll();
+    }
+  }
+
+  async function pushToCloud() {
+    if (!firestoreDb || !currentUser) return;
+    try {
+      const { doc, setDoc } = firebaseModules;
+      await setDoc(doc(firestoreDb, "boards", currentUser.uid), { tasks, ideas, updatedAt: Date.now() });
+    } catch (err) {
+      // Firestore's own offline queue retries this automatically once back
+      // online — nothing more to do here than log it.
+      console.warn("Cloud push deferred:", err);
+    }
+  }
+
+  function attachSync(user) {
+    currentUser = user;
+    const { doc, onSnapshot } = firebaseModules;
+    if (unsubscribeSnapshot) unsubscribeSnapshot();
+    unsubscribeSnapshot = onSnapshot(
+      doc(firestoreDb, "boards", user.uid),
+      (snap) => { if (snap.exists()) mergeRemote(snap.data()); else pushToCloud(); },
+      (err) => { console.error("Sync listener error:", err); updateSyncUI("error"); }
+    );
+    updateSyncUI("signed-in");
+  }
+
+  function detachSync() {
+    if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+    currentUser = null;
+    updateSyncUI("signed-out");
+  }
+
+  async function initSync() {
+    const btn = document.getElementById("sync-btn");
+    if (!btn) return;
+
+    if (!window.FIREBASE_CONFIG || window.FIREBASE_CONFIG.apiKey === "REPLACE_ME") {
+      btn.hidden = true; // not configured — hide rather than show a dead button
+      return;
+    }
+
+    btn.addEventListener("click", async () => {
+      try {
+        await loadFirebase();
+        const { GoogleAuthProvider, signInWithRedirect, signOut } = firebaseModules;
+        if (currentUser) {
+          if (confirm("Sign out and stop syncing this device?")) {
+            await signOut(authInstance);
+            detachSync();
+          }
+        } else {
+          await signInWithRedirect(authInstance, new GoogleAuthProvider());
+        }
+      } catch (err) {
+        console.error("Sync sign-in failed:", err);
+        updateSyncUI("error");
+      }
+    });
+
+    try {
+      await loadFirebase();
+      const { initializeApp, getAuth, onAuthStateChanged, getRedirectResult, getFirestore } = firebaseModules;
+      const app = initializeApp(window.FIREBASE_CONFIG);
+      authInstance = getAuth(app);
+      firestoreDb = getFirestore(app);
+
+      await getRedirectResult(authInstance).catch(() => {});
+      onAuthStateChanged(authInstance, (user) => { if (user) attachSync(user); else detachSync(); });
+    } catch (err) {
+      // No network, CDN unreachable, or bad config — sync just stays off.
+      console.warn("Sync unavailable:", err);
+      updateSyncUI("error");
+    }
+  }
+
   /* ---------- Service worker ---------- */
 
   if ("serviceWorker" in navigator) {
@@ -718,5 +883,7 @@
 
   /* ---------- Init ---------- */
 
+  purgeOldTombstones();
   renderAll();
+  initSync().catch(err => console.warn("Sync init failed:", err));
 })();

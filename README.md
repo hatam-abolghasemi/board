@@ -67,3 +67,49 @@ refresh, or close and reopen the app) to pick up the new version.
   its age with a small fuse bar that goes from cool to warm as it nears 30
   days, at which point the card flags itself with a "worth deciding on a
   deadline?" note. "Give it a deadline" converts it straight into a task.
+- **Sync (optional)**: the cloud icon top-left lets you sign in with Google
+  and sync tasks/ideas across devices in real time via Firebase. It's off by
+  default and the button stays hidden until you set it up (see below). If
+  Firebase is ever unreachable — no internet, blocked CDN, whatever — the
+  rest of the app keeps working exactly as before; sync failing can't break
+  anything else, by design.
+
+## Setting up sync (optional)
+
+Skip this section entirely if you don't want cross-device sync — everything
+above works with zero setup.
+
+1. Go to https://console.firebase.google.com and create a new project (any
+   name, no need for Google Analytics in it).
+2. In the project: click the web icon (`</>`) to register a web app (any
+   nickname, skip Firebase Hosting). It'll show you a `firebaseConfig`
+   object — copy those values into `firebase-config.js` in place of the
+   `REPLACE_ME` placeholders.
+3. Sidebar → Build → **Authentication** → Get started → Sign-in method →
+   enable **Google** → Save.
+4. Sidebar → Build → **Firestore Database** → Create database → any region,
+   start in production mode → **Rules** tab → replace the contents with:
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /boards/{userId} {
+         allow read, write: if request.auth != null && request.auth.uid == userId;
+       }
+     }
+   }
+   ```
+   → Publish. This is what actually enforces "only you can read or write
+   your own data" — the config values in step 2 just say which project to
+   talk to, they don't grant access by themselves.
+5. Authentication → Settings → **Authorized domains** → add your GitHub
+   Pages domain (e.g. `hatam-abolghasemi.github.io`) — sign-in won't work
+   from a domain that isn't listed here.
+6. Commit your edited `firebase-config.js` and push, same as any other
+   update. It's fine that this file is public — a Firebase web `apiKey`
+   isn't a secret, the security rules above are what actually protect your
+   data.
+7. On each device: open the app, tap the cloud icon top-left, sign in with
+   the same Google account. From then on, changes made on one device show
+   up on the other automatically once both are online; if both edited the
+   same thing while apart, whichever edit is newer wins.

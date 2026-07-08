@@ -18,6 +18,7 @@
     <div class="app-header-top">
       <h1 class="app-title">Ledger</h1>
       <div class="header-actions">
+        <button id="sync-btn" class="icon-btn" aria-label="Sync" title="Sign in to sync across devices">&#9729;</button>
         <button id="export-btn" class="icon-btn" aria-label="Export backup" title="Export backup">&#8593;</button>
         <button id="import-btn" class="icon-btn" aria-label="Import backup" title="Import backup">&#8595;</button>
         <input type="file" id="import-input" accept="application/json" hidden>
@@ -118,8 +119,8 @@
       </div>
 
       <label class="field" id="f-labels-field">
-        <span class="field-label">Labels <span class="field-hint">comma separated</span></span>
-        <input type="text" id="f-labels" placeholder="observability, ci-cd" autocomplete="off">
+        <span class="field-label">Labels <span class="field-hint">space separated</span></span>
+        <input type="text" id="f-labels" placeholder="observability ci-cd" autocomplete="off">
       </label>
 
       <label class="field">
@@ -135,6 +136,7 @@
   </div>
 </div>
 
+<script src="firebase-config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

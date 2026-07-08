@@ -261,6 +261,8 @@ input, textarea, select {
 .icon-btn.alarm { color: var(--accent-action); text-decoration: none; }
 .icon-btn.edit { color: var(--text-muted); }
 .icon-btn.delete { color: var(--danger); }
+#sync-btn.sync-signed-in { color: var(--accent-done); }
+#sync-btn.sync-error { color: var(--danger); }
 
 .empty-state {
   color: var(--text-faint);
