@@ -82,16 +82,23 @@
     return str.split(",").map(s => s.trim()).filter(Boolean);
   }
 
-  // Builds an intent:// link that hands off to the phone's Clock app to create
-  // a real native alarm. Requires user to tap "Save" in the Clock app itself —
-  // that's what lets this work with zero special permissions.
-  function alarmIntentUrl(task) {
+  // Builds a Google Calendar "quick add" link. Unlike the Clock app's SET_ALARM
+  // intent, this is a plain https:// URL, so Chrome doesn't block it the way
+  // it blocks browser-triggered intent:// links to non-browsable activities.
+  // Opens the Calendar app directly if installed; the saved event's reminder
+  // then fires locally, offline, same as a native alarm would.
+  function calendarUrl(task) {
     if (!task.datetime) return null;
-    const d = new Date(task.datetime);
-    const hour = d.getHours();
-    const minutes = d.getMinutes();
-    const message = encodeURIComponent(task.title);
-    return `intent://#Intent;action=android.intent.action.SET_ALARM;i.android.intent.extra.alarm.HOUR=${hour};i.android.intent.extra.alarm.MINUTES=${minutes};S.android.intent.extra.alarm.MESSAGE=${message};end`;
+    const start = new Date(task.datetime);
+    const end = new Date(start.getTime() + 30 * 60000);
+    const fmt = (d) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+    const params = new URLSearchParams({
+      action: "TEMPLATE",
+      text: task.title,
+      dates: `${fmt(start)}/${fmt(end)}`,
+      details: task.description || "",
+    });
+    return `https://calendar.google.com/calendar/render?${params.toString()}`;
   }
 
   /* ---------- State ---------- */
@@ -112,9 +119,9 @@
   /* ---------- Rendering: Queue (list) ---------- */
 
   function cardActionsForTask(task) {
-    const alarmUrl = alarmIntentUrl(task);
-    const alarmBtn = alarmUrl
-      ? `<a class="icon-btn alarm" href="${alarmUrl}" aria-label="Set phone alarm" title="Set alarm">&#128276;</a>`
+    const calUrl = calendarUrl(task);
+    const calBtn = calUrl
+      ? `<a class="icon-btn alarm" href="${calUrl}" target="_blank" rel="noopener" aria-label="Add to Calendar" title="Add to Calendar">&#128197;</a>`
       : "";
     const moveBtn = task.status === "queue"
       ? `<button class="icon-btn move-done" data-action="complete" data-id="${task.id}" aria-label="Mark done" title="Mark done">&#10003;</button>`
@@ -122,7 +129,7 @@
     return `
       <div class="card-actions">
         ${moveBtn}
-        ${alarmBtn}
+        ${calBtn}
         <button class="icon-btn" data-action="edit-task" data-id="${task.id}" aria-label="Edit" title="Edit">&#8942;</button>
       </div>`;
   }
